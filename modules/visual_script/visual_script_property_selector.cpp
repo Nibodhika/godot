@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2019 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2019 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -304,31 +304,36 @@ void VisualScriptPropertySelector::_update_search() {
 			continue;
 
 		MethodInfo mi = E->get();
-		String desc = mi.name.capitalize() + " (";
+		String desc_arguments;
+		if (mi.arguments.size() > 0) {
+			desc_arguments = "(";
+			for (int i = 0; i < mi.arguments.size(); i++) {
+
+				if (i > 0) {
+					desc_arguments += ", ";
+				}
+				if (mi.arguments[i].type == Variant::NIL) {
+					desc_arguments += "var";
+				} else if (mi.arguments[i].name.find(":") != -1) {
+					desc_arguments += mi.arguments[i].name.get_slice(":", 1);
+					mi.arguments[i].name = mi.arguments[i].name.get_slice(":", 0);
+				} else {
+					desc_arguments += Variant::get_type_name(mi.arguments[i].type);
+				}
+			}
+			desc_arguments += ")";
+		}
+		String desc_raw = mi.name + desc_arguments;
+		String desc = desc_raw.capitalize().replace("( ", "(");
 
 		if (search_box->get_text() != String() &&
 				name.findn(search_box->get_text()) == -1 &&
-				desc.findn(search_box->get_text()) == -1)
+				desc.findn(search_box->get_text()) == -1 &&
+				desc_raw.findn(search_box->get_text()) == -1) {
 			continue;
-
-		TreeItem *item = search_options->create_item(category ? category : root);
-
-		for (int i = 0; i < mi.arguments.size(); i++) {
-
-			if (i > 0)
-				desc += ", ";
-
-			if (mi.arguments[i].type == Variant::NIL)
-				desc += "var";
-			else if (mi.arguments[i].name.find(":") != -1) {
-				desc += mi.arguments[i].name.get_slice(":", 1);
-				mi.arguments[i].name = mi.arguments[i].name.get_slice(":", 0);
-			} else
-				desc += Variant::get_type_name(mi.arguments[i].type);
 		}
 
-		desc += ")";
-
+		TreeItem *item = search_options->create_item(category ? category : root);
 		item->set_text(0, desc);
 		item->set_icon(0, get_icon("MemberMethod", "EditorIcons"));
 		item->set_metadata(0, name);
@@ -414,11 +419,16 @@ void VisualScriptPropertySelector::get_visual_node_names(const String &root_filt
 			String basic_type = Variant::get_type_name(vnode_function_call->get_basic_type());
 			type_name = basic_type.capitalize() + " ";
 		}
-		VisualScriptBuiltinFunc *vnode_builtin_function_call = Object::cast_to<VisualScriptBuiltinFunc>(*VisualScriptLanguage::singleton->create_node_from_name(E->get()));
-		if (vnode_builtin_function_call != NULL) {
-			type_name = "Builtin ";
+
+		Vector<String> desc = path[path.size() - 1].replace("(", "( ").replace(")", " )").replace(",", ", ").split(" ");
+		for (int i = 0; i < desc.size(); i++) {
+			desc.write[i] = desc[i].capitalize();
+			if (desc[i].ends_with(",")) {
+				desc.write[i] = desc[i].replace(",", ", ");
+			}
 		}
-		item->set_text(0, type_name + path[path.size() - 1].capitalize());
+
+		item->set_text(0, type_name + String("").join(desc));
 		item->set_icon(0, get_icon("VisualScript", "EditorIcons"));
 		item->set_selectable(0, true);
 		item->set_metadata(0, E->get());
@@ -504,26 +514,26 @@ void VisualScriptPropertySelector::_item_selected() {
 	if (names->find(name) != NULL) {
 		Ref<VisualScriptOperator> operator_node = VisualScriptLanguage::singleton->create_node_from_name(name);
 		if (operator_node.is_valid()) {
-			Map<String, DocData::ClassDoc>::Element *E = dd->class_list.find(operator_node->get_class_name());
-			if (E) {
+			Map<String, DocData::ClassDoc>::Element *F = dd->class_list.find(operator_node->get_class_name());
+			if (F) {
 				text = Variant::get_operator_name(operator_node->get_operator());
 			}
 		}
 		Ref<VisualScriptTypeCast> typecast_node = VisualScriptLanguage::singleton->create_node_from_name(name);
 		if (typecast_node.is_valid()) {
-			Map<String, DocData::ClassDoc>::Element *E = dd->class_list.find(typecast_node->get_class_name());
-			if (E) {
-				text = E->get().description;
+			Map<String, DocData::ClassDoc>::Element *F = dd->class_list.find(typecast_node->get_class_name());
+			if (F) {
+				text = F->get().description;
 			}
 		}
 
 		Ref<VisualScriptBuiltinFunc> builtin_node = VisualScriptLanguage::singleton->create_node_from_name(name);
 		if (builtin_node.is_valid()) {
-			Map<String, DocData::ClassDoc>::Element *E = dd->class_list.find(builtin_node->get_class_name());
-			if (E) {
-				for (int i = 0; i < E->get().constants.size(); i++) {
-					if (E->get().constants[i].value.to_int() == int(builtin_node->get_func())) {
-						text = E->get().constants[i].description;
+			Map<String, DocData::ClassDoc>::Element *F = dd->class_list.find(builtin_node->get_class_name());
+			if (F) {
+				for (int i = 0; i < F->get().constants.size(); i++) {
+					if (F->get().constants[i].value.to_int() == int(builtin_node->get_func())) {
+						text = F->get().constants[i].description;
 					}
 				}
 			}
