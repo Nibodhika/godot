@@ -176,7 +176,7 @@ Error ColladaImport::_create_scene_skeletons(Collada::Node *p_node) {
 
 		Skeleton *sk = memnew(Skeleton);
 		int bone = 0;
-
+		sk->set_use_bones_in_world_transform(true); // This improves compatibility in Collada
 		for (int i = 0; i < p_node->children.size(); i++) {
 
 			_populate_skeleton(sk, p_node->children[i], bone, -1);
@@ -1613,8 +1613,6 @@ void ColladaImport::create_animation(int p_clip, bool p_make_tracks_in_all_bones
 					WARN_PRINTS("Collada: Couldn't find matching node " + at.target + " xform for track " + at.param);
 					continue;
 				}
-
-				ERR_CONTINUE(xform_idx == -1);
 
 				Vector<float> data = at.get_value_at_time(snapshots[i]);
 				ERR_CONTINUE(data.empty());

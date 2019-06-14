@@ -117,6 +117,16 @@ enum JoystickList {
 	JOY_WII_MINUS = JOY_BUTTON_10,
 	JOY_WII_PLUS = JOY_BUTTON_11,
 
+	JOY_VR_GRIP = JOY_BUTTON_2,
+	JOY_VR_PAD = JOY_BUTTON_14,
+	JOY_VR_TRIGGER = JOY_BUTTON_15,
+
+	JOY_OCULUS_AX = JOY_BUTTON_7,
+	JOY_OCULUS_BY = JOY_BUTTON_1,
+	JOY_OCULUS_MENU = JOY_BUTTON_3,
+
+	JOY_OPENVR_MENU = JOY_BUTTON_1,
+
 	// end of history
 
 	JOY_AXIS_0 = 0,
@@ -139,6 +149,12 @@ enum JoystickList {
 
 	JOY_ANALOG_L2 = JOY_AXIS_6,
 	JOY_ANALOG_R2 = JOY_AXIS_7,
+
+	JOY_VR_ANALOG_TRIGGER = JOY_AXIS_2,
+	JOY_VR_ANALOG_GRIP = JOY_AXIS_4,
+
+	JOY_OPENVR_TOUCHPADX = JOY_AXIS_0,
+	JOY_OPENVR_TOUCHPADY = JOY_AXIS_1,
 };
 
 enum MidiMessageList {
@@ -165,6 +181,9 @@ protected:
 	static void _bind_methods();
 
 public:
+	static const int DEVICE_ID_TOUCH_MOUSE;
+	static const int DEVICE_ID_INTERNAL;
+
 	void set_device(int p_device);
 	int get_device() const;
 
@@ -186,6 +205,7 @@ public:
 	virtual bool shortcut_match(const Ref<InputEvent> &p_event) const;
 	virtual bool is_action_type() const;
 
+	virtual bool accumulate(const Ref<InputEvent> &p_event) { return false; }
 	InputEvent();
 };
 
@@ -351,6 +371,8 @@ public:
 	virtual Ref<InputEvent> xformed_by(const Transform2D &p_xform, const Vector2 &p_local_ofs = Vector2()) const;
 	virtual String as_text() const;
 
+	virtual bool accumulate(const Ref<InputEvent> &p_event);
+
 	InputEventMouseMotion();
 };
 
@@ -469,6 +491,7 @@ class InputEventAction : public InputEvent {
 
 	StringName action;
 	bool pressed;
+	float strength;
 
 protected:
 	static void _bind_methods();
@@ -479,6 +502,9 @@ public:
 
 	void set_pressed(bool p_pressed);
 	virtual bool is_pressed() const;
+
+	void set_strength(float p_strength);
+	float get_strength() const;
 
 	virtual bool is_action(const StringName &p_action) const;
 

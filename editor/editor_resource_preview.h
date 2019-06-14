@@ -36,24 +36,6 @@
 #include "scene/main/node.h"
 #include "scene/resources/texture.h"
 
-/* make previews for:
-*packdscene
-*wav
-*image
-*mesh
--font
-*script
-*material
--shader
--shader graph?
--navigation mesh
--collision?
--occluder polygon
--navigation polygon
--tileset
--curve and curve2D
-*/
-
 class EditorResourcePreviewGenerator : public Reference {
 
 	GDCLASS(EditorResourcePreviewGenerator, Reference);
@@ -66,7 +48,8 @@ public:
 	virtual Ref<Texture> generate(const RES &p_from, const Size2 p_size) const;
 	virtual Ref<Texture> generate_from_path(const String &p_path, const Size2 p_size) const;
 
-	virtual bool should_generate_small_preview() const;
+	virtual bool generate_small_preview_automatically() const;
+	virtual bool can_generate_small_preview() const;
 
 	EditorResourcePreviewGenerator();
 };

@@ -166,7 +166,8 @@ Transform Collada::Node::compute_transform(Collada &state) const {
 				}
 
 			} break;
-			default: {}
+			default: {
+			}
 		}
 
 		xform = xform * xform_step;
@@ -650,7 +651,7 @@ void Collada::_parse_effect_material(XMLParser &parser, Effect &effect, String &
 													effect.emission.texture = uri;
 												} else if (what == "bump") {
 													if (parser.has_attribute("bumptype") && parser.get_attribute_value("bumptype") != "NORMALMAP") {
-														WARN_PRINT("'bump' texture type is not NORMALMAP, only NORMALMAP is supported.")
+														WARN_PRINT("'bump' texture type is not NORMALMAP, only NORMALMAP is supported.");
 													}
 
 													effect.bump.texture = uri;
@@ -706,7 +707,7 @@ void Collada::_parse_effect_material(XMLParser &parser, Effect &effect, String &
 									String uri = effect.params[surface];
 
 									if (parser.has_attribute("bumptype") && parser.get_attribute_value("bumptype") != "NORMALMAP") {
-										WARN_PRINT("'bump' texture type is not NORMALMAP, only NORMALMAP is supported.")
+										WARN_PRINT("'bump' texture type is not NORMALMAP, only NORMALMAP is supported.");
 									}
 
 									effect.bump.texture = uri;
@@ -2255,8 +2256,7 @@ void Collada::_merge_skeletons2(VisualScene *p_vscene) {
 
 			Node *node = state.scene_map[name];
 			ERR_CONTINUE(node->type != Node::TYPE_JOINT);
-			if (node->type != Node::TYPE_JOINT)
-				continue;
+
 			NodeSkeleton *sk = NULL;
 
 			while (node && !sk) {

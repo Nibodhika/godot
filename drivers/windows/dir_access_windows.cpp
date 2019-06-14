@@ -353,7 +353,6 @@ String DirAccessWindows::get_filesystem_type() const {
 	ERR_FAIL_COND_V(unit_end == -1, String());
 	String unit = path.substr(0, unit_end + 1) + "\\";
 
-
 	WCHAR szVolumeName[100];
 	WCHAR szFileSystemName[10];
 	DWORD dwSerialNumber = 0;
@@ -395,7 +394,7 @@ DirAccessWindows::DirAccessWindows() {
 
 		if (mask & (1 << i)) { //DRIVE EXISTS
 
-			drives[drive_count] = 'a' + i;
+			drives[drive_count] = 'A' + i;
 			drive_count++;
 		}
 	}

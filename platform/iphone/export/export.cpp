@@ -196,15 +196,16 @@ public:
 
 void EditorExportPlatformIOS::get_preset_features(const Ref<EditorExportPreset> &p_preset, List<String> *r_features) {
 
-	if (p_preset->get("texture_format/s3tc")) {
-		r_features->push_back("s3tc");
-	}
-	if (p_preset->get("texture_format/etc")) {
+	String driver = ProjectSettings::get_singleton()->get("rendering/quality/driver/driver_name");
+	if (driver == "GLES2") {
 		r_features->push_back("etc");
-	}
-	if (p_preset->get("texture_format/etc2")) {
+	} else if (driver == "GLES3") {
 		r_features->push_back("etc2");
+		if (ProjectSettings::get_singleton()->get("rendering/quality/driver/fallback_to_gles2")) {
+			r_features->push_back("etc");
+		}
 	}
+
 	Vector<String> architectures = _get_preset_architectures(p_preset);
 	for (int i = 0; i < architectures.size(); ++i) {
 		r_features->push_back(architectures[i]);
@@ -268,7 +269,6 @@ void EditorExportPlatformIOS::get_export_options(List<ExportOption> *r_options) 
 	r_options->push_back(ExportOption(PropertyInfo(Variant::BOOL, "capabilities/push_notifications"), false));
 
 	r_options->push_back(ExportOption(PropertyInfo(Variant::STRING, "privacy/camera_usage_description"), "Godot would like to use your camera"));
-	r_options->push_back(ExportOption(PropertyInfo(Variant::STRING, "privacy/microphone_usage_description"), "Godot would like to use your microphone"));
 	r_options->push_back(ExportOption(PropertyInfo(Variant::STRING, "privacy/photolibrary_usage_description"), "Godot would like to use your photos"));
 
 	r_options->push_back(ExportOption(PropertyInfo(Variant::BOOL, "orientation/portrait"), true));
@@ -289,10 +289,6 @@ void EditorExportPlatformIOS::get_export_options(List<ExportOption> *r_options) 
 	for (unsigned int i = 0; i < sizeof(loading_screen_infos) / sizeof(loading_screen_infos[0]); ++i) {
 		r_options->push_back(ExportOption(PropertyInfo(Variant::STRING, loading_screen_infos[i].preset_key, PROPERTY_HINT_FILE, "*.png"), ""));
 	}
-
-	r_options->push_back(ExportOption(PropertyInfo(Variant::BOOL, "texture_format/s3tc"), false));
-	r_options->push_back(ExportOption(PropertyInfo(Variant::BOOL, "texture_format/etc"), false));
-	r_options->push_back(ExportOption(PropertyInfo(Variant::BOOL, "texture_format/etc2"), true));
 
 	Vector<ExportArchitecture> architectures = _get_supported_architectures();
 	for (int i = 0; i < architectures.size(); ++i) {
@@ -402,9 +398,6 @@ void EditorExportPlatformIOS::_fix_config_file(const Ref<EditorExportPreset> &p_
 		} else if (lines[i].find("$camera_usage_description") != -1) {
 			String description = p_preset->get("privacy/camera_usage_description");
 			strnew += lines[i].replace("$camera_usage_description", description) + "\n";
-		} else if (lines[i].find("$microphone_usage_description") != -1) {
-			String description = p_preset->get("privacy/microphone_usage_description");
-			strnew += lines[i].replace("$microphone_usage_description", description) + "\n";
 		} else if (lines[i].find("$photolibrary_usage_description") != -1) {
 			String description = p_preset->get("privacy/photolibrary_usage_description");
 			strnew += lines[i].replace("$photolibrary_usage_description", description) + "\n";
@@ -826,7 +819,7 @@ Error EditorExportPlatformIOS::export_project(const Ref<EditorExportPreset> &p_p
 	String dest_dir = p_path.get_base_dir() + "/";
 	String binary_name = p_path.get_file().get_basename();
 
-	EditorProgress ep("export", "Exporting for iOS", 5);
+	EditorProgress ep("export", "Exporting for iOS", 5, true);
 
 	String team_id = p_preset->get("application/app_store_team_id");
 	ERR_EXPLAIN("App Store Team ID not specified - cannot configure the project.");
@@ -844,6 +837,10 @@ Error EditorExportPlatformIOS::export_project(const Ref<EditorExportPreset> &p_p
 			EditorNode::add_io_error(err);
 			return ERR_FILE_NOT_FOUND;
 		}
+	}
+
+	if (!DirAccess::exists(dest_dir)) {
+		return ERR_FILE_BAD_PATH;
 	}
 
 	DirAccess *da = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
@@ -871,14 +868,18 @@ Error EditorExportPlatformIOS::export_project(const Ref<EditorExportPreset> &p_p
 		memdelete(da);
 	}
 
-	ep.step("Making .pck", 0);
+	if (ep.step("Making .pck", 0)) {
+		return ERR_SKIP;
+	}
 	String pack_path = dest_dir + binary_name + ".pck";
 	Vector<SharedObject> libraries;
 	Error err = save_pack(p_preset, pack_path, &libraries);
 	if (err)
 		return err;
 
-	ep.step("Extracting and configuring Xcode project", 1);
+	if (ep.step("Extracting and configuring Xcode project", 1)) {
+		return ERR_SKIP;
+	}
 
 	String library_to_use = "libgodot.iphone." + String(p_debug ? "debug" : "release") + ".fat.a";
 
@@ -913,7 +914,7 @@ Error EditorExportPlatformIOS::export_project(const Ref<EditorExportPreset> &p_p
 	};
 
 	DirAccess *tmp_app_path = DirAccess::create_for_path(dest_dir);
-	ERR_FAIL_COND_V(!tmp_app_path, ERR_CANT_CREATE)
+	ERR_FAIL_COND_V(!tmp_app_path, ERR_CANT_CREATE);
 
 	print_line("Unzipping...");
 	FileAccess *src_f = NULL;
@@ -923,7 +924,7 @@ Error EditorExportPlatformIOS::export_project(const Ref<EditorExportPreset> &p_p
 		EditorNode::add_io_error("Could not open export template (not a zip file?):\n" + src_pkg_name);
 		return ERR_CANT_OPEN;
 	}
-	ERR_FAIL_COND_V(!src_pkg_zip, ERR_CANT_OPEN);
+
 	int ret = unzGoToFirstFile(src_pkg_zip);
 	Vector<uint8_t> project_file_data;
 	while (ret == UNZ_OK) {
@@ -1056,7 +1057,9 @@ Error EditorExportPlatformIOS::export_project(const Ref<EditorExportPreset> &p_p
 	memdelete(f);
 
 #ifdef OSX_ENABLED
-	ep.step("Code-signing dylibs", 2);
+	if (ep.step("Code-signing dylibs", 2)) {
+		return ERR_SKIP;
+	}
 	DirAccess *dylibs_dir = DirAccess::open(dest_dir + binary_name + "/dylibs");
 	ERR_FAIL_COND_V(!dylibs_dir, ERR_CANT_OPEN);
 	CodesignData codesign_data(p_preset, p_debug);
@@ -1064,7 +1067,9 @@ Error EditorExportPlatformIOS::export_project(const Ref<EditorExportPreset> &p_p
 	memdelete(dylibs_dir);
 	ERR_FAIL_COND_V(err, err);
 
-	ep.step("Making .xcarchive", 3);
+	if (ep.step("Making .xcarchive", 3)) {
+		return ERR_SKIP;
+	}
 	String archive_path = p_path.get_basename() + ".xcarchive";
 	List<String> archive_args;
 	archive_args.push_back("-project");
@@ -1083,7 +1088,9 @@ Error EditorExportPlatformIOS::export_project(const Ref<EditorExportPreset> &p_p
 	err = OS::get_singleton()->execute("xcodebuild", archive_args, true);
 	ERR_FAIL_COND_V(err, err);
 
-	ep.step("Making .ipa", 4);
+	if (ep.step("Making .ipa", 4)) {
+		return ERR_SKIP;
+	}
 	List<String> export_args;
 	export_args.push_back("-exportArchive");
 	export_args.push_back("-archivePath");

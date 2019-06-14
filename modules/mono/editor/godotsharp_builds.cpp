@@ -30,6 +30,7 @@
 
 #include "godotsharp_builds.h"
 
+#include "core/os/os.h"
 #include "core/vector.h"
 #include "main/main.h"
 
@@ -195,6 +196,11 @@ MonoBoolean godot_icall_BuildInstance_get_UsingMonoMSBuildOnWindows() {
 #endif
 }
 
+MonoBoolean godot_icall_BuildInstance_get_PrintBuildOutput() {
+
+	return (bool)EDITOR_GET("mono/builds/print_build_output");
+}
+
 void GodotSharpBuilds::register_internal_calls() {
 
 	static bool registered = false;
@@ -205,6 +211,7 @@ void GodotSharpBuilds::register_internal_calls() {
 	mono_add_internal_call("GodotSharpTools.Build.BuildInstance::godot_icall_BuildInstance_get_MSBuildPath", (void *)godot_icall_BuildInstance_get_MSBuildPath);
 	mono_add_internal_call("GodotSharpTools.Build.BuildInstance::godot_icall_BuildInstance_get_MonoWindowsBinDir", (void *)godot_icall_BuildInstance_get_MonoWindowsBinDir);
 	mono_add_internal_call("GodotSharpTools.Build.BuildInstance::godot_icall_BuildInstance_get_UsingMonoMSBuildOnWindows", (void *)godot_icall_BuildInstance_get_UsingMonoMSBuildOnWindows);
+	mono_add_internal_call("GodotSharpTools.Build.BuildInstance::godot_icall_BuildInstance_get_PrintBuildOutput", (void *)godot_icall_BuildInstance_get_PrintBuildOutput);
 }
 
 void GodotSharpBuilds::show_build_error_dialog(const String &p_message) {
@@ -317,10 +324,13 @@ bool GodotSharpBuilds::make_api_assembly(APIAssembly::Type p_api_type) {
 	String api_sln_file = api_sln_dir.plus_file(API_SOLUTION_NAME ".sln");
 
 	if (!DirAccess::exists(api_sln_dir) || !FileAccess::exists(api_sln_file)) {
-		BindingsGenerator *gen = BindingsGenerator::get_singleton();
-		bool gen_verbose = OS::get_singleton()->is_stdout_verbose();
+		BindingsGenerator bindings_generator;
 
-		Error err = gen->generate_cs_api(api_sln_dir, gen_verbose);
+		if (!OS::get_singleton()->is_stdout_verbose()) {
+			bindings_generator.set_log_print_enabled(false);
+		}
+
+		Error err = bindings_generator.generate_cs_api(api_sln_dir);
 		if (err != OK) {
 			show_build_error_dialog("Failed to generate " API_SOLUTION_NAME " solution. Error: " + itos(err));
 			return false;
@@ -342,7 +352,7 @@ bool GodotSharpBuilds::make_api_assembly(APIAssembly::Type p_api_type) {
 	return true;
 }
 
-bool GodotSharpBuilds::build_project_blocking(const String &p_config) {
+bool GodotSharpBuilds::build_project_blocking(const String &p_config, const Vector<String> &p_godot_defines) {
 
 	if (!FileAccess::exists(GodotSharpDirs::get_project_sln_path()))
 		return true; // No solution to build
@@ -357,6 +367,29 @@ bool GodotSharpBuilds::build_project_blocking(const String &p_config) {
 	pr.step("Building project solution", 0);
 
 	MonoBuildInfo build_info(GodotSharpDirs::get_project_sln_path(), p_config);
+
+	// Add Godot defines
+#ifdef WINDOWS_ENABLED
+	String constants = "GodotDefineConstants=\"";
+#else
+	String constants = "GodotDefineConstants=\\\"";
+#endif
+
+	for (int i = 0; i < p_godot_defines.size(); i++) {
+		constants += "GODOT_" + p_godot_defines[i].to_upper().replace("-", "_").replace(" ", "_").replace(";", "_") + ";";
+	}
+
+#ifdef REAL_T_IS_DOUBLE
+	constants += "GODOT_REAL_T_IS_DOUBLE;";
+#endif
+
+#ifdef WINDOWS_ENABLED
+	constants += "\"";
+#else
+	constants += "\\\"";
+#endif
+	build_info.custom_props.push_back(constants);
+
 	if (!GodotSharpBuilds::get_singleton()->build(build_info)) {
 		GodotSharpBuilds::show_build_error_dialog("Failed to build project solution");
 		return false;
@@ -384,7 +417,10 @@ bool GodotSharpBuilds::editor_build_callback() {
 		ERR_FAIL_COND_V(copy_err != OK, false);
 	}
 
-	return build_project_blocking("Tools");
+	Vector<String> godot_defines;
+	godot_defines.push_back(OS::get_singleton()->get_name());
+	godot_defines.push_back(sizeof(void *) == 4 ? "32" : "64");
+	return build_project_blocking("Tools", godot_defines);
 }
 
 GodotSharpBuilds *GodotSharpBuilds::singleton = NULL;
@@ -457,6 +493,8 @@ GodotSharpBuilds::GodotSharpBuilds() {
 			"," PROP_NAME_MSBUILD_VS
 #endif
 			"," PROP_NAME_XBUILD));
+
+	EDITOR_DEF("mono/builds/print_build_output", false);
 }
 
 GodotSharpBuilds::~GodotSharpBuilds() {
